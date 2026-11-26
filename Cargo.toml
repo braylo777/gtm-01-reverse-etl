@@ -1,0 +1,23 @@
+[package]
+name = "gtm-01-reverse-etl"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Make the warehouse the single source of truth: resolve one customer across CRM, billing and product data, plan diff-only syncs back to the CRM, and run dbt-style models in the right order."
+repository = "https://github.com/braylo777/gtm-01-reverse-etl"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "gtm-01-reverse-etl"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "=1.0.154"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1

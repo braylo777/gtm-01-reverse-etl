@@ -1,0 +1,76 @@
+{
+  "stage": 1,
+  "repo": "gtm-01-reverse-etl",
+  "title": "Data Infrastructure & Reverse ETL",
+  "tagline": "Make the warehouse the single source of truth: resolve one customer across CRM, billing and product data, plan diff-only syncs back to the CRM, and run dbt-style models in the right order.",
+  "why": "Every GTM workflow downstream (routing, scoring, AI emails, churn alerts) reads customer data. If the CRM says one thing, billing another and the product a third, every automation is wrong in a different way. A warehouse-native setup fixes this once: merge identities in SQL models, build one golden record, and push only the changed fields back into the tools the reps use.",
+  "covers": [
+    "Identity resolution: union-find over normalized email (gmail dots and +tags) and phone (US/CA 11-digit), transitive merges across sources",
+    "Survivorship rules: per field, newest non-empty value wins; ties go to the higher-priority source; field-level lineage shows where each value came from",
+    "Reverse-ETL diff sync: field mapping, insert / update / unchanged / optional delete, per-field from→to changes, duplicate keys fail the run",
+    "dbt-style model DAG: run order, parallel layers, cycle and unknown-ref detection, downstream rebuild set for a changed model"
+  ],
+  "gaps": [
+    "No live Snowflake / BigQuery / Hightouch / Census connection: inputs are JSON rows",
+    "Matching is deterministic (exact normalized keys); no fuzzy name or address matching",
+    "No SQL parsing: model dependencies are declared, not extracted from ref() calls"
+  ],
+  "ops": [
+    {
+      "op": "resolve_identities",
+      "label": "Resolve identities",
+      "help": "Merge records that share a normalized email or phone into one person, then build a golden record with field lineage.",
+      "input": {
+        "source_priority": ["crm", "billing", "product"],
+        "records": [
+          {"id": "003A1", "source": "crm", "email": "Dana.Reyes@northwind.io", "name": "Dana Reyes", "title": "VP Sales", "updated_at": "2026-09-01"},
+          {"id": "cus_88", "source": "billing", "email": "dana.reyes@northwind.io", "phone": "+1 (415) 555-0142", "plan": "Growth", "updated_at": "2026-10-12"},
+          {"id": "u_5521", "source": "product", "phone": "415.555.0142", "title": "CRO", "seats_active": 37, "updated_at": "2026-11-20"},
+          {"id": "003B7", "source": "crm", "email": "sam.k+demo@gmail.com", "name": "Sam Kim", "updated_at": "2026-08-15"},
+          {"id": "u_9001", "source": "product", "email": "samk@gmail.com", "seats_active": 3, "updated_at": "2026-11-18"},
+          {"id": "003C2", "source": "crm", "email": "lee@contoso.dev", "name": "Lee Park", "updated_at": "2026-07-30"}
+        ]
+      }
+    },
+    {
+      "op": "sync_plan",
+      "label": "Reverse-ETL sync plan",
+      "help": "Compare warehouse rows with CRM rows through a field mapping. Only changed fields get an API call.",
+      "input": {
+        "key": "account_id",
+        "mapping": {"account_id": "External_Id__c", "arr": "ARR__c", "health": "Health_Score__c", "pql": "Is_PQL__c"},
+        "delete_missing": false,
+        "warehouse_rows": [
+          {"account_id": "A-100", "arr": 48000, "health": 82, "pql": true},
+          {"account_id": "A-101", "arr": 12000, "health": 41, "pql": false},
+          {"account_id": "A-102", "arr": 96000, "health": 77, "pql": true},
+          {"account_id": "A-103", "arr": 6000, "health": 90, "pql": true}
+        ],
+        "destination_rows": [
+          {"External_Id__c": "A-100", "ARR__c": 48000, "Health_Score__c": 82, "Is_PQL__c": true},
+          {"External_Id__c": "A-101", "ARR__c": 12000, "Health_Score__c": 55, "Is_PQL__c": false},
+          {"External_Id__c": "A-102", "ARR__c": 90000, "Health_Score__c": 77, "Is_PQL__c": false},
+          {"External_Id__c": "A-999", "ARR__c": 1000, "Health_Score__c": 10, "Is_PQL__c": false}
+        ]
+      }
+    },
+    {
+      "op": "model_dag",
+      "label": "dbt model DAG",
+      "help": "Order warehouse models, show which can run in parallel, and list what must rebuild when one model changes.",
+      "input": {
+        "changed": "stg_billing",
+        "models": [
+          {"name": "stg_crm_contacts"},
+          {"name": "stg_billing"},
+          {"name": "stg_product_events"},
+          {"name": "int_identity_graph", "depends_on": ["stg_crm_contacts", "stg_billing", "stg_product_events"]},
+          {"name": "dim_people", "depends_on": ["int_identity_graph"]},
+          {"name": "fct_daily_usage", "depends_on": ["stg_product_events", "dim_people"]},
+          {"name": "rpt_account_360", "depends_on": ["dim_people", "fct_daily_usage", "stg_billing"]},
+          {"name": "rpt_web_sessions", "depends_on": ["stg_product_events"]}
+        ]
+      }
+    }
+  ]
+}

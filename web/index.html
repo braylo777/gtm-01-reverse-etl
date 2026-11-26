@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Infrastructure &amp; Reverse ETL · GTM Stage 1</title>
+<meta name="description" content="Make the warehouse the single source of truth: resolve one customer across CRM, billing and product data, plan diff-only syncs back to the CRM, and run dbt-style models in the right order.">
+<style>
+:root { --bg:#0d1520; --fg:#efe9dc; --mut:#c9c3b6; --card:#111c2a; --line:rgba(179,155,112,.32); --acc:#b39b70; --ok:#5fc58c; --err:#e0a487; --code:#132033; color-scheme:dark; }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 "Jost",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif }
+main { max-width:960px; margin:0 auto; padding:32px 20px 24px }
+.kicker { font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.08em; text-transform:uppercase; color:var(--acc) }
+h1 { font-family:var(--bsi-serif); font-weight:400; font-size:clamp(28px,4vw,40px); line-height:1.15; margin:10px 0 8px; letter-spacing:-.01em }
+.lede { color:var(--mut); max-width:68ch; margin:0 0 28px }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px }
+[role=tablist] { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px }
+[role=tablist] button { font:inherit; font-size:14px; padding:6px 12px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer }
+[role=tablist] button[aria-selected=true] { background:var(--acc); border-color:var(--acc); color:var(--bg) }
+#help { color:var(--mut); font-size:14px; margin:0 0 12px }
+.io { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+@media (max-width:760px) { .io { grid-template-columns:1fr } }
+label { font-size:12px; font-weight:600; color:var(--mut); text-transform:uppercase; letter-spacing:.06em }
+textarea, pre { width:100%; min-height:340px; margin:6px 0 0; padding:12px; border-radius:8px; border:1px solid var(--line); background:var(--code); color:var(--fg); font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; overflow:auto; white-space:pre-wrap; word-break:break-word }
+textarea { resize:vertical }
+pre.ok { border-color:var(--ok) } pre.err { border-color:var(--err); color:var(--err) }
+.bar { display:flex; gap:8px; margin-top:12px }
+.bar button { font:inherit; font-weight:600; padding:8px 18px; border-radius:8px; border:1px solid var(--acc); background:var(--acc); color:var(--bg); cursor:pointer }
+.bar button.sec { background:transparent; color:var(--acc) }
+.bar button:disabled { opacity:.5; cursor:wait }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:20px }
+@media (max-width:760px) { .cols { grid-template-columns:1fr } }
+h2 { font-size:15px; margin:0 0 8px } ul { margin:0; padding-left:18px; font-size:14px } li { margin:3px 0 }
+.meta { margin-top:28px; font-size:13px; color:var(--mut) } a { color:var(--acc) }
+</style>
+<style id="bsi-brand">:root{--bsi-night:#0d1520;--bsi-night2:#111c2a;--bsi-navy:#132033;--bsi-brass:#b39b70;--bsi-ink:#efe9dc;--bsi-ink2:#c9c3b6;--bsi-ink3:#8e8b84;--bsi-serif:"Libre Caslon",Baskerville,"Iowan Old Style",Georgia,serif;--bsi-sans:"Jost",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}h1,h2,h3{font-family:var(--bsi-serif)}.bsi-top,.bsi-foot{box-sizing:border-box;width:100%;background:linear-gradient(180deg,var(--bsi-navy),var(--bsi-night));color:var(--bsi-ink);font:400 14px/1.5 var(--bsi-sans);border:1px solid rgba(179,155,112,.45)}.bsi-top *,.bsi-foot *{box-sizing:border-box}.bsi-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 16px;margin:0 0 16px;border-width:0 0 1px}.bsi-top img{display:block;height:36px;width:auto}.bsi-top a{color:var(--bsi-ink);text-decoration:none}.bsi-cta{font:500 12px/1 var(--bsi-sans);letter-spacing:.14em;text-transform:uppercase;padding:10px 14px;border:1px solid var(--bsi-brass);color:var(--bsi-ink)!important}.bsi-cta:hover{background:var(--bsi-brass);color:var(--bsi-night)!important}.bsi-foot{margin:32px 0 0;padding:20px 16px;border-width:1px 0 0;text-align:left}.bsi-by{display:flex;align-items:center;gap:14px;max-width:960px;margin:0 auto}.bsi-hs{width:56px;height:56px;border-radius:50%;border:1px solid var(--bsi-brass);object-fit:cover;flex:none}.bsi-sig{display:block;height:40px;width:auto;margin:0 0 2px}.bsi-foot p{margin:0;color:var(--bsi-ink2);font:400 13px/1.5 var(--bsi-sans)}.bsi-foot .bsi-name{color:var(--bsi-ink);font:400 16px/1.3 var(--bsi-serif)}.bsi-foot .bsi-links{max-width:960px;margin:12px auto 0;padding-top:10px;border-top:1px solid rgba(179,155,112,.25);color:var(--bsi-ink3)}.bsi-foot a{color:var(--bsi-brass);text-decoration:underline;text-underline-offset:2px}</style>
+</head>
+<body>
+<!--bsi-brand:start--><header class="bsi-top"><a href="https://braylo.si" aria-label="Braylo SI, home"><img src="brand/braylo-signature.webp" width="104" height="36" alt="Braylo"></a><a class="bsi-cta" href="https://braylo.si">braylo.si &#8594;</a></header><!--bsi-brand:end-->
+<main>
+<div class="kicker">GTM Engineering · Stage 1 of 12</div>
+<h1>Data Infrastructure &amp; Reverse ETL</h1>
+<p class="lede">Make the warehouse the single source of truth: resolve one customer across CRM, billing and product data, plan diff-only syncs back to the CRM, and run dbt-style models in the right order. The logic below runs in your browser: it is the same Rust code as the repo, compiled to WebAssembly. Nothing is sent to a server. All data is synthetic.</p>
+<section class="card">
+<div id="tabs" role="tablist" aria-label="Operations"></div>
+<p id="help"></p>
+<div class="io">
+<div><label for="input">Input (JSON, editable)</label><textarea id="input" spellcheck="false"></textarea></div>
+<div><label for="output">Output</label><pre id="output" aria-live="polite">Loading…</pre></div>
+</div>
+<div class="bar"><button id="run" type="button" disabled>Run</button><button id="reset" class="sec" type="button">Reset example</button></div>
+</section>
+<div class="cols">
+<section class="card"><h2>What this repo covers</h2><ul><li>Identity resolution: union-find over normalized email (gmail dots and +tags) and phone (US/CA 11-digit), transitive merges across sources</li><li>Survivorship rules: per field, newest non-empty value wins; ties go to the higher-priority source; field-level lineage shows where each value came from</li><li>Reverse-ETL diff sync: field mapping, insert / update / unchanged / optional delete, per-field from→to changes, duplicate keys fail the run</li><li>dbt-style model DAG: run order, parallel layers, cycle and unknown-ref detection, downstream rebuild set for a changed model</li></ul></section>
+<section class="card"><h2>Not covered (honest gaps)</h2><ul><li>No live Snowflake / BigQuery / Hightouch / Census connection: inputs are JSON rows</li><li>Matching is deterministic (exact normalized keys); no fuzzy name or address matching</li><li>No SQL parsing: model dependencies are declared, not extracted from ref() calls</li></ul></section>
+</div>
+<p class="meta">Source, tests and CLI: <a href="https://github.com/braylo777/gtm-01-reverse-etl">github.com/braylo777/gtm-01-reverse-etl</a> · MIT license · Built by <a href="https://braylo.si">Braylo SI</a></p>
+</main>
+<!--bsi-foot:start--><footer class="bsi-foot"><div class="bsi-by"><img class="bsi-hs" src="brand/braylo-headshot.jpg" width="56" height="56" alt="Brandon Lopez"><div><img class="bsi-sig" src="brand/braylo-signature.webp" width="116" height="40" alt="Braylo signature"><p class="bsi-name">Brandon Lopez, Founder · <a href="https://braylo.si">Braylo SI</a></p><p>Certified Claude FDE &amp; AI safety researcher, Techstars alum.</p></div></div><p class="bsi-links"><a href="https://github.com/braylo777/gtm-01-reverse-etl">Source on GitHub</a> · <a href="https://braylo.si">braylo.si</a> · AI implementation for small businesses</p></footer><!--bsi-foot:end-->
+<script type="application/json" id="cfg">{"stage": 1, "repo": "gtm-01-reverse-etl", "title": "Data Infrastructure & Reverse ETL", "tagline": "Make the warehouse the single source of truth: resolve one customer across CRM, billing and product data, plan diff-only syncs back to the CRM, and run dbt-style models in the right order.", "why": "Every GTM workflow downstream (routing, scoring, AI emails, churn alerts) reads customer data. If the CRM says one thing, billing another and the product a third, every automation is wrong in a different way. A warehouse-native setup fixes this once: merge identities in SQL models, build one golden record, and push only the changed fields back into the tools the reps use.", "covers": ["Identity resolution: union-find over normalized email (gmail dots and +tags) and phone (US/CA 11-digit), transitive merges across sources", "Survivorship rules: per field, newest non-empty value wins; ties go to the higher-priority source; field-level lineage shows where each value came from", "Reverse-ETL diff sync: field mapping, insert / update / unchanged / optional delete, per-field from\u2192to changes, duplicate keys fail the run", "dbt-style model DAG: run order, parallel layers, cycle and unknown-ref detection, downstream rebuild set for a changed model"], "gaps": ["No live Snowflake / BigQuery / Hightouch / Census connection: inputs are JSON rows", "Matching is deterministic (exact normalized keys); no fuzzy name or address matching", "No SQL parsing: model dependencies are declared, not extracted from ref() calls"], "ops": [{"op": "resolve_identities", "label": "Resolve identities", "help": "Merge records that share a normalized email or phone into one person, then build a golden record with field lineage.", "input": {"source_priority": ["crm", "billing", "product"], "records": [{"id": "003A1", "source": "crm", "email": "Dana.Reyes@northwind.io", "name": "Dana Reyes", "title": "VP Sales", "updated_at": "2026-09-01"}, {"id": "cus_88", "source": "billing", "email": "dana.reyes@northwind.io", "phone": "+1 (415) 555-0142", "plan": "Growth", "updated_at": "2026-10-12"}, {"id": "u_5521", "source": "product", "phone": "415.555.0142", "title": "CRO", "seats_active": 37, "updated_at": "2026-11-20"}, {"id": "003B7", "source": "crm", "email": "sam.k+demo@gmail.com", "name": "Sam Kim", "updated_at": "2026-08-15"}, {"id": "u_9001", "source": "product", "email": "samk@gmail.com", "seats_active": 3, "updated_at": "2026-11-18"}, {"id": "003C2", "source": "crm", "email": "lee@contoso.dev", "name": "Lee Park", "updated_at": "2026-07-30"}]}}, {"op": "sync_plan", "label": "Reverse-ETL sync plan", "help": "Compare warehouse rows with CRM rows through a field mapping. Only changed fields get an API call.", "input": {"key": "account_id", "mapping": {"account_id": "External_Id__c", "arr": "ARR__c", "health": "Health_Score__c", "pql": "Is_PQL__c"}, "delete_missing": false, "warehouse_rows": [{"account_id": "A-100", "arr": 48000, "health": 82, "pql": true}, {"account_id": "A-101", "arr": 12000, "health": 41, "pql": false}, {"account_id": "A-102", "arr": 96000, "health": 77, "pql": true}, {"account_id": "A-103", "arr": 6000, "health": 90, "pql": true}], "destination_rows": [{"External_Id__c": "A-100", "ARR__c": 48000, "Health_Score__c": 82, "Is_PQL__c": true}, {"External_Id__c": "A-101", "ARR__c": 12000, "Health_Score__c": 55, "Is_PQL__c": false}, {"External_Id__c": "A-102", "ARR__c": 90000, "Health_Score__c": 77, "Is_PQL__c": false}, {"External_Id__c": "A-999", "ARR__c": 1000, "Health_Score__c": 10, "Is_PQL__c": false}]}}, {"op": "model_dag", "label": "dbt model DAG", "help": "Order warehouse models, show which can run in parallel, and list what must rebuild when one model changes.", "input": {"changed": "stg_billing", "models": [{"name": "stg_crm_contacts"}, {"name": "stg_billing"}, {"name": "stg_product_events"}, {"name": "int_identity_graph", "depends_on": ["stg_crm_contacts", "stg_billing", "stg_product_events"]}, {"name": "dim_people", "depends_on": ["int_identity_graph"]}, {"name": "fct_daily_usage", "depends_on": ["stg_product_events", "dim_people"]}, {"name": "rpt_account_360", "depends_on": ["dim_people", "fct_daily_usage", "stg_billing"]}, {"name": "rpt_web_sessions", "depends_on": ["stg_product_events"]}]}}]}</script>
+<script src="app.js"></script>
+</body>
+</html>
